@@ -270,7 +270,7 @@ Linky leaves zero trace on the internet.
 
 ### 8.1 The Monolithic Single-File Approach
 The most unique aspect of Linky is its delivery mechanism. The entire application is a single `.html` file.
-*   **Why?** Maximum portability. A user can email the `Linky.html` file to a friend, put it on a USB drive, or host it on any static file server (GitHub Pages, Netlify).
+*   **Why?** Maximum portability. A user can email the `index.html` file to a friend, put it on a USB drive, or host it on any static file server (GitHub Pages, Netlify).
 *   **Dependencies:** It relies on three robust CDNs:
     1.  Tailwind CSS (for styling).
     2.  PeerJS (for WebRTC abstraction).
