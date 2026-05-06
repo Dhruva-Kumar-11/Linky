@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linky | Symmetric P2P Share</title>
+    <meta name="description" content="Secure, serverless, peer-to-peer file sharing directly in your browser. No accounts, no logs, just pure speed.">
+    <meta property="og:title" content="Linky | Symmetric P2P Share">
+    <meta property="og:description" content="High-speed, browser-native P2P file transfer. Privacy-first and serverless.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Content Security Policy (Hardened) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' wss://*.peerjs.com https://*.peerjs.com https://stun.l.google.com:19302 https://global.stun.twilio.com:3478; img-src 'self' data:; blob: 'self';">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#a855f7',
+                        success: '#22c55e',
+                        linkySlate: '#0f172a'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+            background-color: #0f172a;
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+
+        body.light { background-color: #f8fafc; color: #0f172a; }
+
+        /* Mesh Background */
+        .mesh-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,20%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,20%,1) 0, transparent 50%);
+            transition: opacity 0.5s ease;
+        }
+        .light .mesh-bg {
+            opacity: 0.12;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(215,100%,70%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(253,100%,70%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(280,100%,70%,1) 0, transparent 50%);
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+            transition: all 0.3s ease;
+        }
+        .light .glass {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.05);
+        }
+
+        /* High Contrast Light Mode Overrides */
+        .light .text-white, .light .text-slate-100, .light .text-slate-200, .light .text-slate-300 { color: #0f172a !important; }
+        .light .text-slate-400 { color: #334155 !important; }
+        .light .text-slate-500 { color: #4b5563 !important; }
+        .light .bg-slate-900\/40 { background-color: rgba(15, 23, 42, 0.05) !important; border-color: rgba(15, 23, 42, 0.1) !important; }
+
+        .keypad-btn { transition: all 0.15s ease; cursor: pointer; }
+        .keypad-btn:active { transform: scale(0.92); background: rgba(99, 102, 241, 0.1); }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        .drag-over { border-color: #6366f1 !important; background: rgba(99, 102, 241, 0.05) !important; }
+        *:focus { outline: none; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.25); border-radius: 10px; }
+    </style>
+</head>
+<body class="text-slate-300 min-h-screen">
+    <div class="mesh-bg"></div>
+
+    <!-- Header -->
+    <nav class="sticky top-0 z-50 px-6 py-4 glass mb-10">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-gradient-to-tr from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                    <i class="fas fa-link text-white"></i>
+                </div>
+                <span class="text-xl font-black tracking-tighter text-white">Linky</span>
+            </div>
+            <button id="themeToggle" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:scale-110 transition-transform">
+                <i class="fas fa-moon text-primary" id="themeIcon"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-6 pb-24">
+        <!-- Setup View -->
+        <section id="setupSection" class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 animate-slide">
+            <!-- Host Panel -->
+            <div class="glass p-8 rounded-[2rem] relative overflow-hidden group">
+                <div class="absolute -right-12 -top-12 w-48 h-48 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-all"></div>
+                <h2 class="text-2xl font-black mb-1 text-white flex items-center">
+                    <i class="fas fa-plus-circle mr-3 text-primary"></i> Create Room
+                </h2>
+                <p class="text-slate-400 text-xs mb-8">Set a custom alphanumeric PIN to start sharing.</p>
+                
+                <div class="space-y-4">
+                    <div class="flex space-x-2">
+                        <input type="text" id="customPin" maxlength="12" class="flex-1 bg-slate-900/40 border border-slate-700/50 rounded-xl px-4 py-3 text-lg font-bold tracking-widest text-center uppercase text-white focus:border-primary transition-all" placeholder="CUSTOM PIN">
+                        <button id="hostBtn" class="px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95">HOST</button>
+                    </div>
+                    <div id="hostStatus" class="hidden animate-slide py-4 px-5 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <span class="text-[9px] uppercase tracking-widest text-primary font-bold block mb-1">Room PIN</span>
+                            <span class="text-white font-mono text-2xl font-black tracking-widest" id="myPinDisplay">------</span>
+                        </div>
+                        <button onclick="copyInvite()" class="w-11 h-11 glass rounded-xl text-primary hover:bg-primary/10 transition-colors flex items-center justify-center"><i class="fas fa-share-nodes"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Join Panel -->
+            <div class="glass p-8 rounded-[2rem] relative overflow-hidden group">
+                <div class="absolute -right-12 -top-12 w-48 h-48 bg-secondary/5 rounded-full blur-3xl group-hover:bg-secondary/10 transition-all"></div>
+                <h2 class="text-2xl font-black mb-1 text-white flex items-center">
+                    <i class="fas fa-fingerprint mr-3 text-secondary"></i> Join Peer
+                </h2>
+                <p class="text-slate-400 text-xs mb-8">Enter PIN via keyboard or the numeric pad.</p>
+                
+                <div class="flex flex-col items-center">
+                    <!-- PIN slots (Compact & Wrapping for 12 chars) -->
+                    <div class="flex flex-wrap justify-center gap-1.5 mb-8 max-w-[280px]" id="pinSlots">
+                        <template id="slotTmpl">
+                            <div class="w-8 h-12 bg-slate-900/40 border border-slate-700/50 rounded-xl flex items-center justify-center text-base font-black text-white transition-all shadow-inner"></div>
+                        </template>
+                    </div>
+
+                    <!-- Keyboard-style Pad -->
+                    <div class="grid grid-cols-3 gap-2 w-full max-w-[210px]">
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('1')">1</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('2')">2</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('3')">3</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('4')">4</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('5')">5</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('6')">6</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('7')">7</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('8')">8</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('9')">9</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-[9px] font-bold text-slate-500" onclick="clearP()">CLR</button>
+                        <button class="keypad-btn glass h-10 rounded-lg text-lg font-black text-white" onclick="press('0')">0</button>
+                        <button class="keypad-btn bg-secondary text-white h-10 rounded-lg shadow-lg active:scale-95" onclick="joinLinky()"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Symmetric Workspace -->
+        <div id="workspace" class="hidden opacity-0 transform translate-y-8 transition-all duration-700">
+            <section class="mb-10">
+                <div id="dropZone" class="glass border-2 border-dashed border-slate-700 rounded-[3rem] p-20 text-center group cursor-pointer hover:border-primary/50 transition-all relative overflow-hidden">
+                    <input type="file" id="fileInput" class="hidden" multiple>
+                    <div class="relative z-10">
+                        <div class="w-24 h-24 bg-primary/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-all duration-500 shadow-xl">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-primary"></i>
+                        </div>
+                        <h3 class="text-3xl font-black text-white mb-2">Drop Files to Share</h3>
+                        <p class="text-slate-500 text-sm">Symmetric high-speed transfer active.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Monitor -->
+                <div class="lg:col-span-2 glass p-10 rounded-[2.5rem]">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-2xl font-black text-white flex items-center">
+                            <i class="fas fa-sync-alt mr-4 text-primary animate-spin-slow"></i> Streams
+                        </h2>
+                        <span class="px-4 py-1.5 bg-green-500/10 text-green-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-green-500/20">Link Established</span>
+                    </div>
+                    <div id="streamBox" class="space-y-4">
+                        <div id="emptyMsg" class="text-center py-16 opacity-30 italic text-sm">Ready for bidirectional flow</div>
+                    </div>
+                </div>
+
+                <!-- Chat & Analytics Sidepanel -->
+                <div class="space-y-8">
+                    <!-- Ephemeral Chat -->
+                    <div class="glass p-8 rounded-[2.5rem] flex flex-col h-[400px]">
+                        <h2 class="text-xl font-black text-white mb-6 flex items-center justify-between">
+                            <span class="flex items-center"><i class="fas fa-comment-dots mr-3 text-primary"></i> Chat</span>
+                            <span class="text-[9px] uppercase tracking-tighter text-slate-500 font-bold">P2P Encrypted</span>
+                        </h2>
+                        <div id="chatBox" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scroll mb-4 text-[11px] font-medium text-slate-400">
+                            <div class="italic opacity-50 text-center py-10">Messages are ephemeral and never stored.</div>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="chatInput" placeholder="Type a message..." class="w-full bg-slate-900/40 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-primary transition-all pr-12">
+                            <button id="sendChat" class="absolute right-2 top-2 w-8 h-8 bg-primary rounded-lg text-white text-xs hover:scale-105 transition-all"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- History -->
+                    <div class="glass p-8 rounded-[2.5rem]">
+                        <h2 class="text-xl font-black text-white mb-6 flex items-center">
+                            <i class="fas fa-history mr-3 text-slate-500"></i> History
+                        </h2>
+                        <div id="historyList" class="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scroll"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Global Media Preview Overlay -->
+        <div id="mediaPreview" class="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl hidden flex items-center justify-center p-10 animate-fade">
+            <button onclick="closePreview()" class="absolute top-10 right-10 w-12 h-12 glass rounded-full text-white text-xl flex items-center justify-center hover:bg-white/10 transition-all"><i class="fas fa-times"></i></button>
+            <div id="previewContent" class="max-w-4xl w-full h-full flex items-center justify-center"></div>
+        </div>
+
+        <div id="placeholder" class="text-center py-12 opacity-30">
+            <i class="fas fa-satellite-dish text-6xl mb-4"></i>
+            <p class="text-sm font-bold uppercase tracking-widest">Awaiting Linky Handshake</p>
+        </div>
+    </main>
+
+    <!-- Footer / Privacy Info -->
+    <footer class="max-w-5xl mx-auto px-6 pb-12">
+        <div class="glass p-8 rounded-[2rem] flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0">
+            <div class="flex items-center space-x-4">
+                <div class="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-primary">
+                    <i class="fas fa-shield-halved text-xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-white font-bold text-sm">Privacy Guaranteed</h4>
+                    <p class="text-slate-500 text-[10px] leading-tight max-w-[240px]">Serverless P2P transfer. No data is stored, logged, or touches any server. Fully encrypted.</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-6">
+                <a href="#" class="text-slate-500 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest">Documentation</a>
+                <a href="#" class="text-slate-500 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest">GitHub</a>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <span class="text-slate-600 text-[10px] font-bold uppercase tracking-widest">v2.0 Stable</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toasts -->
+    <div id="toastRack" class="fixed top-8 right-8 z-[100] space-y-3 pointer-events-none"></div>
+
+    <script>
+        // --- SYMMETRIC CORE LOGIC ---
+        const CHUNK_SIZE = 65536; // 64KB
+        const SALT = "LINKY_V2_PROD_SALT"; // Change this periodically for rotation
+        let linkyPeer = null;
+        let activeConn = null; // GLOBAL CONNECTION OBJECT
+        let myRoomPin = "";
+        let inputPin = "";
+
+        // Cryptographic Hash for Peer ID (Obfuscation)
+        async function hashPin(pin) {
+            const msgBuffer = new TextEncoder().encode(SALT + pin);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+        }
+
+        const UI = {
+            customPin: document.getElementById('customPin'),
+            hostBtn: document.getElementById('hostBtn'),
+            hostStatus: document.getElementById('hostStatus'),
+            pinDisplay: document.getElementById('myPinDisplay'),
+            pinSlots: document.getElementById('pinSlots'),
+            workspace: document.getElementById('workspace'),
+            setup: document.getElementById('setupSection'),
+            placeholder: document.getElementById('placeholder'),
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            streamBox: document.getElementById('streamBox'),
+            emptyMsg: document.getElementById('emptyMsg'),
+            history: document.getElementById('historyList'),
+            toastRack: document.getElementById('toastRack'),
+            themeToggle: document.getElementById('themeToggle'),
+            themeIcon: document.getElementById('themeIcon'),
+            chatBox: document.getElementById('chatBox'),
+            chatInput: document.getElementById('chatInput'),
+            sendChat: document.getElementById('sendChat'),
+            previewOverlay: document.getElementById('mediaPreview'),
+            previewContent: document.getElementById('previewContent')
+        };
+
+        // --- EPHEMERAL CHAT ---
+        UI.sendChat.addEventListener('click', sendChatMessage);
+        UI.chatInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') sendChatMessage(); });
+
+        function sendChatMessage() {
+            const msg = UI.chatInput.value.trim();
+            if(!msg || !activeConn) return;
+            activeConn.send({ action: 'chat', msg });
+            appendChat('You', msg);
+            UI.chatInput.value = "";
+        }
+
+        function appendChat(user, msg) {
+            const el = document.createElement('div');
+            el.className = 'animate-slide';
+            el.innerHTML = `<span class="font-black ${user === 'You' ? 'text-primary' : 'text-secondary'} uppercase text-[9px] mr-2">${user}:</span><span>${msg}</span>`;
+            UI.chatBox.appendChild(el);
+            UI.chatBox.scrollTop = UI.chatBox.scrollHeight;
+            if(user !== 'You') notify('New Message Received', 'info');
+        }
+
+        // --- MEDIA PREVIEWS ---
+        function showPreview(blob, name, type) {
+            UI.previewContent.innerHTML = "";
+            const isImg = type.startsWith('image/');
+            const isVid = type.startsWith('video/');
+            
+            if(isImg || isVid) {
+                const media = document.createElement(isImg ? 'img' : 'video');
+                media.src = URL.createObjectURL(blob);
+                media.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
+                if(isVid) { media.controls = true; media.autoplay = true; }
+                UI.previewContent.appendChild(media);
+                UI.previewOverlay.classList.remove('hidden');
+                UI.previewOverlay.classList.add('flex');
+            }
+        }
+
+        window.closePreview = () => {
+            UI.previewOverlay.classList.add('hidden');
+            UI.previewOverlay.classList.remove('flex');
+            UI.previewContent.innerHTML = "";
+        };
+
+        // --- TELEMETRY (SPEED & TIME) ---
+        const flowStats = {}; // Tracks bytes sent per interval
+
+        // Initialize Alphanumeric PIN Slots
+        for(let i=0; i<12; i++) {
+            const slot = document.getElementById('slotTmpl').content.cloneNode(true);
+            UI.pinSlots.appendChild(slot);
+        }
+
+        // --- THEME ---
+        UI.themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.body.classList.toggle('light');
+            UI.themeIcon.className = isDark ? 'fas fa-moon text-primary' : 'fas fa-sun text-secondary';
+        });
+
+        // --- HYBRID PIN INPUT (KEYBOARD + KEYPAD) ---
+        window.press = (n) => { if(inputPin.length < 12) { inputPin += n; syncPinUI(); } };
+        window.clearP = () => { inputPin = ""; syncPinUI(); };
+
+        function syncPinUI() {
+            const slots = UI.pinSlots.querySelectorAll('div');
+            slots.forEach((s, i) => {
+                s.innerText = inputPin[i] || "";
+                s.classList.toggle('border-secondary', !!inputPin[i]);
+                s.classList.toggle('bg-secondary/10', !!inputPin[i]);
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement === UI.customPin) return;
+            if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+                if(inputPin.length < 12) { inputPin += e.key.toUpperCase(); syncPinUI(); }
+            } else if (e.key === 'Backspace') {
+                inputPin = inputPin.slice(0, -1); syncPinUI();
+            } else if (e.key === 'Enter') joinLinky();
+        });
+
+        // --- UNIFIED CONNECTION HANDLER (THE SYMMETRIC FIX) ---
+        function setupConnection(conn) {
+            activeConn = conn; // Seal the global connection
+
+            activeConn.on('open', () => {
+                notify('Symmetric Tunnel Sealed', 'success');
+                UI.setup.classList.add('hidden');
+                UI.placeholder.classList.add('hidden');
+                UI.workspace.classList.remove('hidden');
+                setTimeout(() => UI.workspace.classList.remove('opacity-0', 'translate-y-8'), 100);
+            });
+
+            // Symmetric Data Handler: Receives from either side
+            activeConn.on('data', onIncomingData);
+
+            activeConn.on('close', () => {
+                notify('Link Terminated', 'error');
+                setTimeout(() => location.reload(), 2000);
+            });
+            
+            activeConn.on('error', (err) => notify('Data Stream Error', 'error'));
+        }
+
+        // --- PEER INITIALIZATION ---
+        UI.hostBtn.addEventListener('click', async () => {
+            const pin = UI.customPin.value.trim().toUpperCase() || Math.floor(100000 + Math.random() * 900000).toString();
+            const hashedId = await hashPin(pin);
+            initPeer(`LINKY-${hashedId}`, pin);
+        });
+
+        function initPeer(id, pin) {
+            if(linkyPeer) linkyPeer.destroy();
+            linkyPeer = new Peer(id, {
+                debug: 1, // Reduced debug for production
+                config: { 
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' }, 
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        // ADD TURN SERVERS HERE FOR PRODUCTION RELIABILITY (e.g., Xirsys, Twilio, OpenRelay)
+                        // { urls: 'turn:YOUR_TURN_SERVER', username: 'YOUR_USER', credential: 'YOUR_PASSWORD' }
+                    ] 
+                }
+            });
+
+            linkyPeer.on('open', () => {
+                myRoomPin = pin;
+                UI.pinDisplay.innerText = pin;
+                UI.hostStatus.classList.remove('hidden');
+                notify('Room Broadcasting', 'success');
+            });
+
+            // HOST receives connection
+            linkyPeer.on('connection', setupConnection);
+
+            linkyPeer.on('error', (err) => {
+                if(err.type === 'unavailable-id') notify('PIN Busy, try another', 'error');
+                else notify(`Error: ${err.type}`, 'error');
+            });
+        }
+
+        window.joinLinky = async () => {
+            if(inputPin.length < 4) return notify('PIN too short', 'warning');
+            const hashedTarget = await hashPin(inputPin);
+            if(!linkyPeer) {
+                linkyPeer = new Peer({ debug: 1 });
+                linkyPeer.on('open', () => initiateHandshake(`LINKY-${hashedTarget}`));
+            } else {
+                initiateHandshake(`LINKY-${hashedTarget}`);
+            }
+        };
+
+        function initiateHandshake(targetId) {
+            notify('Handshaking...', 'info');
+            const c = linkyPeer.connect(targetId, { reliable: true });
+            setupConnection(c); // GUEST initiates connection
+        }
+
+        // --- BIDIRECTIONAL FILE STREAMING ---
+        UI.dropZone.addEventListener('click', () => UI.fileInput.click());
+        UI.dropZone.addEventListener('dragover', (e) => { e.preventDefault(); UI.dropZone.classList.add('drag-over'); });
+        UI.dropZone.addEventListener('dragleave', () => UI.dropZone.classList.remove('drag-over'));
+        UI.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); UI.dropZone.classList.remove('drag-over');
+            syncFiles(e.dataTransfer.files);
+        });
+        UI.fileInput.addEventListener('change', () => syncFiles(UI.fileInput.files));
+
+        function syncFiles(files) {
+            if(!activeConn) return notify('Connect first', 'warning');
+            Array.from(files).forEach(streamFile);
+        }
+
+        async function streamFile(file) {
+            const flowId = Math.random().toString(36).substr(2, 9);
+            renderFlowUI(flowId, file.name, file.size, 'out');
+            UI.emptyMsg.classList.add('hidden');
+
+            activeConn.send({ action: 'meta', id: flowId, name: file.name, size: file.size, type: file.type });
+
+            const reader = file.stream().getReader();
+            let sent = 0;
+            try {
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if(done) break;
+                    
+                    let offset = 0;
+                    while(offset < value.length) {
+                        const chunk = value.slice(offset, offset + CHUNK_SIZE);
+                        activeConn.send({ action: 'chunk', id: flowId, chunk });
+                        offset += chunk.length;
+                        sent += chunk.length;
+                        tickProgress(flowId, sent, file.size);
+                    }
+                }
+                activeConn.send({ action: 'done', id: flowId });
+                finishFlow(flowId, true);
+                logHistory(file.name, file.size, 'out');
+            } catch(e) {
+                notify('Flow Interrupted', 'error');
+                finishFlow(flowId, false);
+            }
+        }
+
+        const flowBuf = {};
+        function onIncomingData(pkt) {
+            if(pkt.action === 'chat') {
+                appendChat('Peer', pkt.msg);
+            } else if(pkt.action === 'meta') {
+                flowBuf[pkt.id] = { name: pkt.name, size: pkt.size, mime: pkt.type, data: [], rec: 0, lastRec: 0, lastTime: Date.now() };
+                renderFlowUI(pkt.id, pkt.name, pkt.size, 'in');
+                UI.emptyMsg.classList.add('hidden');
+            } else if(pkt.action === 'chunk') {
+                const b = flowBuf[pkt.id];
+                if(!b) return;
+                b.data.push(pkt.chunk);
+                b.rec += pkt.chunk.byteLength;
+                tickProgress(pkt.id, b.rec, b.size);
+            } else if(pkt.action === 'done') {
+                const b = flowBuf[pkt.id];
+                if(!b) return;
+                const blob = new Blob(b.data, { type: b.mime });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = b.name;
+                a.click();
+                
+                // Show Media Preview for images/videos
+                if(b.mime.startsWith('image/') || b.mime.startsWith('video/')) {
+                    showPreview(blob, b.name, b.mime);
+                }
+
+                finishFlow(pkt.id, true);
+                logHistory(b.name, b.size, 'in');
+                delete flowBuf[pkt.id];
+            }
+        }
+
+        // --- UI UTILS ---
+        function renderFlowUI(id, name, size, dir) {
+            const card = document.createElement('div');
+            card.id = `f-${id}`;
+            card.className = 'glass p-6 rounded-[2rem] animate-slide border-l-[6px] ' + (dir === 'out' ? 'border-l-primary' : 'border-l-secondary');
+            card.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-4 overflow-hidden">
+                        <i class="fas ${dir === 'out' ? 'fa-arrow-up text-primary' : 'fa-arrow-down text-secondary'} text-sm"></i>
+                        <span class="text-xs font-black text-white truncate">${name}</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span id="s-${id}" class="text-[9px] font-bold text-slate-500 uppercase">0 MB/s</span>
+                        <span id="p-${id}" class="text-[10px] font-mono text-slate-500">0%</span>
+                    </div>
+                </div>
+                <div class="w-full h-1.5 bg-slate-900/40 rounded-full overflow-hidden">
+                    <div id="b-${id}" class="h-full bg-gradient-to-r ${dir === 'out' ? 'from-primary to-indigo-500' : 'from-secondary to-pink-500'} transition-all duration-300" style="width: 0%"></div>
+                </div>`;
+            UI.streamBox.prepend(card);
+            
+            // Speed monitor loop
+            flowStats[id] = setInterval(() => {
+                const b = (dir === 'out') ? flowStats[id + '_sent'] : (flowBuf[id] ? flowBuf[id].rec : null);
+                const prev = (dir === 'out') ? flowStats[id + '_prev'] : (flowBuf[id] ? flowBuf[id].lastRec : null);
+                if (b === null) return;
+
+                const diff = b - (prev || 0);
+                const speed = formatBytes(diff) + '/s';
+                const el = document.getElementById(`s-${id}`);
+                if(el) el.innerText = speed;
+
+                if(dir === 'out') flowStats[id + '_prev'] = b;
+                else if(flowBuf[id]) flowBuf[id].lastRec = b;
+            }, 1000);
+        }
+
+        function tickProgress(id, cur, tot) {
+            const p = Math.round((cur / tot) * 100);
+            const b = document.getElementById(`b-${id}`);
+            const t = document.getElementById(`p-${id}`);
+            if(b) b.style.width = `${p}%`;
+            if(t) t.innerText = `${p}%`;
+            
+            // Update internal sent tracker for sender speed calc
+            if(flowStats[id + '_sent'] !== undefined) flowStats[id + '_sent'] = cur;
+        }
+
+        function finishFlow(id, ok) {
+            clearInterval(flowStats[id]);
+            delete flowStats[id];
+            delete flowStats[id + '_sent'];
+            delete flowStats[id + '_prev'];
+
+            const t = document.getElementById(`p-${id}`);
+            if(t) t.innerHTML = ok ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-red-500"></i>';
+            setTimeout(() => {
+                const el = document.getElementById(`f-${id}`);
+                if(el) {
+                    el.classList.add('opacity-0', 'scale-95');
+                    setTimeout(() => {
+                        el.remove();
+                        if(UI.streamBox.children.length === 1) UI.emptyMsg.classList.remove('hidden');
+                    }, 500);
+                }
+            }, 5000);
+        }
+
+        function logHistory(name, size, dir) {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-all text-[11px] font-bold';
+            row.innerHTML = `<span class="truncate pr-4">${dir === 'out' ? '↑' : '↓'} ${name}</span><span class="text-slate-500">${formatBytes(size)}</span>`;
+            UI.history.prepend(row);
+        }
+
+        function notify(msg, type = 'info') {
+            const t = document.createElement('div');
+            const scheme = type === 'success' ? 'border-green-500/50 bg-green-500/10 text-green-500' : 'border-primary/50 bg-primary/10 text-primary';
+            t.className = `glass px-6 py-3 rounded-2xl border ${scheme} text-[11px] font-black animate-slide pointer-events-auto shadow-2xl`;
+            t.innerText = msg;
+            UI.toastRack.appendChild(t);
+            setTimeout(() => t.remove(), 4000);
+        }
+
+        function formatBytes(b) {
+            if(b === 0) return '0 B';
+            const k = 1024, i = Math.floor(Math.log(b) / Math.log(k));
+            return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + ['B','KB','MB','GB'][i];
+        }
+
+        window.copyInvite = () => {
+            const url = `${window.location.origin}${window.location.pathname}?pin=${myRoomPin}`;
+            navigator.clipboard.writeText(url).then(() => notify('Invite Link Copied', 'success'));
+        };
+
+        window.addEventListener('load', () => {
+            const p = new URLSearchParams(window.location.search).get('pin');
+            if(p) { inputPin = p.substring(0,12).toUpperCase(); syncPinUI(); notify('PIN Import Success', 'info'); }
+        });
+    </script>
+</body>
+</html>
