@@ -120,15 +120,69 @@ function appendChat(user, msg) {
 // --- MEDIA PREVIEWS ---
 function showPreview(blob, name, type) {
     UI.previewContent.innerHTML = "";
-    const isImg = type && type.startsWith('image/');
-    const isVid = type && type.startsWith('video/');
-    
-    if(isImg || isVid) {
-        const media = document.createElement(isImg ? 'img' : 'video');
-        media.src = URL.createObjectURL(blob);
-        media.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
-        if(isVid) { media.controls = true; media.autoplay = true; }
-        UI.previewContent.appendChild(media);
+    const url = URL.createObjectURL(blob);
+
+    const isImg   = type && type.startsWith('image/');
+    const isVid   = type && type.startsWith('video/');
+    const isAud   = type && type.startsWith('audio/');
+    const isPdf   = type === 'application/pdf';
+    const isTxt   = type && type.startsWith('text/');
+
+    let el = null;
+
+    if(isImg) {
+        el = document.createElement('img');
+        el.src = url;
+        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl object-contain';
+    } else if(isVid) {
+        el = document.createElement('video');
+        el.src = url;
+        el.controls = true;
+        el.autoplay = true;
+        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
+    } else if(isAud) {
+        el = document.createElement('audio');
+        el.src = url;
+        el.controls = true;
+        el.autoplay = true;
+        el.className = 'w-full mt-4';
+        // wrap with a label
+        const wrap = document.createElement('div');
+        wrap.className = 'flex flex-col items-center gap-4 p-6';
+        const lbl = document.createElement('p');
+        lbl.className = 'text-white font-black text-sm truncate max-w-xs';
+        lbl.textContent = name;
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-music text-5xl text-primary';
+        wrap.appendChild(icon);
+        wrap.appendChild(lbl);
+        wrap.appendChild(el);
+        UI.previewContent.appendChild(wrap);
+        UI.previewOverlay.classList.remove('hidden');
+        UI.previewOverlay.classList.add('flex');
+        return;
+    } else if(isPdf) {
+        el = document.createElement('iframe');
+        el.src = url;
+        el.className = 'w-full rounded-2xl shadow-2xl border-0';
+        el.style.height = '80vh';
+        el.style.minWidth = 'min(90vw, 900px)';
+    } else if(isTxt) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const pre = document.createElement('pre');
+            pre.textContent = e.target.result;
+            pre.className = 'text-left text-xs text-slate-200 bg-slate-900/80 rounded-2xl p-6 overflow-auto max-h-[70vh] max-w-[80vw] shadow-2xl font-mono';
+            UI.previewContent.appendChild(pre);
+            UI.previewOverlay.classList.remove('hidden');
+            UI.previewOverlay.classList.add('flex');
+        };
+        reader.readAsText(blob);
+        return;
+    }
+
+    if(el) {
+        UI.previewContent.appendChild(el);
         UI.previewOverlay.classList.remove('hidden');
         UI.previewOverlay.classList.add('flex');
     }

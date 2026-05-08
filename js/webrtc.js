@@ -284,12 +284,20 @@ async function onIncomingData(pkt) {
             const a = document.createElement('a');
             a.href = url;
             a.download = b.name;
+            a.style.display = 'none';
+            document.body.appendChild(a);
             a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
             
-            if(b.mime && (b.mime.startsWith('image/') || b.mime.startsWith('video/'))) {
-                showPreview(blob, b.name, b.mime);
-            }
+            const previewable = b.mime && (
+                b.mime.startsWith('image/') ||
+                b.mime.startsWith('video/') ||
+                b.mime.startsWith('audio/') ||
+                b.mime === 'application/pdf' ||
+                b.mime.startsWith('text/')
+            );
+            if(previewable) showPreview(blob, b.name, b.mime);
         }
 
         finishFlow(pkt.id, true);
