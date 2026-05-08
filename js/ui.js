@@ -97,8 +97,8 @@ function notify(msg, type = 'info') {
 }
 
 function formatBytes(b) {
-    if(b === 0) return '0 B';
-    const k = 1024, i = Math.floor(Math.log(b) / Math.log(k));
+    if(!b || b <= 0) return '0 B';
+    const k = 1024, i = Math.min(Math.floor(Math.log(b) / Math.log(k)), 3);
     return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + ['B','KB','MB','GB'][i];
 }
 
@@ -118,56 +118,21 @@ function appendChat(user, msg) {
 }
 
 // --- MEDIA PREVIEWS ---
+let _previewBlobUrl = null; // track active preview URL for cleanup
+
 function showPreview(blob, name, type) {
+    // Revoke any previous preview URL to prevent memory leaks
+    if(_previewBlobUrl) { URL.revokeObjectURL(_previewBlobUrl); _previewBlobUrl = null; }
     UI.previewContent.innerHTML = "";
-    const url = URL.createObjectURL(blob);
 
-    const isImg   = type && type.startsWith('image/');
-    const isVid   = type && type.startsWith('video/');
-    const isAud   = type && type.startsWith('audio/');
-    const isPdf   = type === 'application/pdf';
-    const isTxt   = type && type.startsWith('text/');
+    const isImg = type && type.startsWith('image/');
+    const isVid = type && type.startsWith('video/');
+    const isAud = type && type.startsWith('audio/');
+    const isPdf = type === 'application/pdf';
+    const isTxt = type && type.startsWith('text/');
 
-    let el = null;
-
-    if(isImg) {
-        el = document.createElement('img');
-        el.src = url;
-        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl object-contain';
-    } else if(isVid) {
-        el = document.createElement('video');
-        el.src = url;
-        el.controls = true;
-        el.autoplay = true;
-        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
-    } else if(isAud) {
-        el = document.createElement('audio');
-        el.src = url;
-        el.controls = true;
-        el.autoplay = true;
-        el.className = 'w-full mt-4';
-        // wrap with a label
-        const wrap = document.createElement('div');
-        wrap.className = 'flex flex-col items-center gap-4 p-6';
-        const lbl = document.createElement('p');
-        lbl.className = 'text-white font-black text-sm truncate max-w-xs';
-        lbl.textContent = name;
-        const icon = document.createElement('i');
-        icon.className = 'fas fa-music text-5xl text-primary';
-        wrap.appendChild(icon);
-        wrap.appendChild(lbl);
-        wrap.appendChild(el);
-        UI.previewContent.appendChild(wrap);
-        UI.previewOverlay.classList.remove('hidden');
-        UI.previewOverlay.classList.add('flex');
-        return;
-    } else if(isPdf) {
-        el = document.createElement('iframe');
-        el.src = url;
-        el.className = 'w-full rounded-2xl shadow-2xl border-0';
-        el.style.height = '80vh';
-        el.style.minWidth = 'min(90vw, 900px)';
-    } else if(isTxt) {
+    // Text: use FileReader — no blob URL needed
+    if(isTxt) {
         const reader = new FileReader();
         reader.onload = (e) => {
             const pre = document.createElement('pre');
@@ -181,6 +146,49 @@ function showPreview(blob, name, type) {
         return;
     }
 
+    // All other previewable types need a blob URL
+    const url = URL.createObjectURL(blob);
+    _previewBlobUrl = url;
+    let el = null;
+
+    if(isImg) {
+        el = document.createElement('img');
+        el.src = url;
+        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl object-contain';
+    } else if(isVid) {
+        el = document.createElement('video');
+        el.src = url;
+        el.controls = true;
+        el.autoplay = true;
+        el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
+    } else if(isAud) {
+        const wrap = document.createElement('div');
+        wrap.className = 'flex flex-col items-center gap-4 p-6';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-music text-5xl text-primary';
+        const lbl = document.createElement('p');
+        lbl.className = 'text-white font-black text-sm truncate max-w-xs';
+        lbl.textContent = name;
+        const audio = document.createElement('audio');
+        audio.src = url;
+        audio.controls = true;
+        audio.autoplay = true;
+        audio.className = 'w-full mt-4';
+        wrap.appendChild(icon);
+        wrap.appendChild(lbl);
+        wrap.appendChild(audio);
+        UI.previewContent.appendChild(wrap);
+        UI.previewOverlay.classList.remove('hidden');
+        UI.previewOverlay.classList.add('flex');
+        return;
+    } else if(isPdf) {
+        el = document.createElement('iframe');
+        el.src = url;
+        el.className = 'w-full rounded-2xl shadow-2xl border-0';
+        el.style.height = '80vh';
+        el.style.minWidth = 'min(90vw, 900px)';
+    }
+
     if(el) {
         UI.previewContent.appendChild(el);
         UI.previewOverlay.classList.remove('hidden');
@@ -192,6 +200,8 @@ window.closePreview = () => {
     UI.previewOverlay.classList.add('hidden');
     UI.previewOverlay.classList.remove('flex');
     UI.previewContent.innerHTML = "";
+    // Revoke blob URL when closing preview
+    if(_previewBlobUrl) { URL.revokeObjectURL(_previewBlobUrl); _previewBlobUrl = null; }
 };
 
 // --- HYBRID PIN INPUT (KEYBOARD + KEYPAD) ---

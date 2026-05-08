@@ -251,13 +251,17 @@ async function onIncomingData(pkt) {
         appendChat('Peer', pkt.msg);
     } else if(pkt.action === 'meta') {
         const isLarge = pkt.size >= LARGE_FILE_THRESHOLD;
-        flowBuf[pkt.id] = { name: pkt.name, size: pkt.size, mime: pkt.type, data: [], rec: 0, lastRec: 0, lastTime: Date.now(), isLarge, streamWriter: null };
+        const mime = pkt.type || 'application/octet-stream'; // fallback for unknown types
+        flowBuf[pkt.id] = { name: pkt.name, size: pkt.size, mime, data: [], rec: 0, lastRec: 0, lastTime: Date.now(), isLarge, streamWriter: null, key: null };
+        // Derive key once per file, not per chunk
+        deriveKey(inputPin || myRoomPin).then(k => { if(flowBuf[pkt.id]) flowBuf[pkt.id].key = k; });
         renderFlowUI(pkt.id, pkt.name, pkt.size, 'in', isLarge);
         UI.emptyMsg.classList.add('hidden');
     } else if(pkt.action === 'chunk') {
         const b = flowBuf[pkt.id];
         if(!b) return;
-        const key = await deriveKey(inputPin || myRoomPin);
+        // Use pre-derived key; fallback to deriving now if key not ready yet
+        const key = b.key || await deriveKey(inputPin || myRoomPin);
         try {
             const decrypted = await decryptChunk(pkt, key);
             const chunk = new Uint8Array(decrypted);
