@@ -260,12 +260,13 @@ async function onIncomingData(pkt) {
         const key = await deriveKey(inputPin || myRoomPin);
         try {
             const decrypted = await decryptChunk(pkt, key);
+            const chunk = new Uint8Array(decrypted);
             if (b.streamWriter) {
-                await b.streamWriter.write(decrypted);
+                await b.streamWriter.write(chunk);
             } else {
-                b.data.push(decrypted);
+                b.data.push(chunk);
             }
-            b.rec += decrypted.byteLength;
+            b.rec += chunk.byteLength;
             tickProgress(pkt.id, b.rec, b.size);
         } catch(e) {
             notify('Decryption Failed', 'error');
