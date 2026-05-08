@@ -120,8 +120,8 @@ function appendChat(user, msg) {
 // --- MEDIA PREVIEWS ---
 function showPreview(blob, name, type) {
     UI.previewContent.innerHTML = "";
-    const isImg = type.startsWith('image/');
-    const isVid = type.startsWith('video/');
+    const isImg = type && type.startsWith('image/');
+    const isVid = type && type.startsWith('video/');
     
     if(isImg || isVid) {
         const media = document.createElement(isImg ? 'img' : 'video');

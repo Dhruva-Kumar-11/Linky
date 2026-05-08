@@ -287,7 +287,7 @@ async function onIncomingData(pkt) {
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             
-            if(b.mime.startsWith('image/') || b.mime.startsWith('video/')) {
+            if(b.mime && (b.mime.startsWith('image/') || b.mime.startsWith('video/'))) {
                 showPreview(blob, b.name, b.mime);
             }
         }
