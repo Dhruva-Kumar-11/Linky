@@ -174,13 +174,51 @@ async function processQueue() {
     processQueue();
 }
 
+// --- MIME TYPE INFERENCE (for files where browser returns empty type) ---
+const MIME_MAP = {
+    // Video
+    mp4: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg', mov: 'video/quicktime',
+    avi: 'video/x-msvideo', mkv: 'video/x-matroska', flv: 'video/x-flv',
+    mpeg: 'video/mpeg', mpg: 'video/mpeg', m4v: 'video/mp4', ts: 'video/mp2t',
+    '3gp': 'video/3gpp', wmv: 'video/x-ms-wmv',
+    // Audio
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac',
+    aac: 'audio/aac', m4a: 'audio/mp4', opus: 'audio/opus', weba: 'audio/webm',
+    wma: 'audio/x-ms-wma', aiff: 'audio/aiff', mid: 'audio/midi', midi: 'audio/midi',
+    // Image
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
+    tiff: 'image/tiff', tif: 'image/tiff', avif: 'image/avif', heic: 'image/heic',
+    // Document
+    pdf: 'application/pdf',
+    txt: 'text/plain', csv: 'text/csv', html: 'text/html', htm: 'text/html',
+    xml: 'text/xml', json: 'application/json', md: 'text/markdown',
+    // Archive
+    zip: 'application/zip', rar: 'application/x-rar-compressed',
+    gz: 'application/gzip', tar: 'application/x-tar', '7z': 'application/x-7z-compressed',
+    // Office
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Code / Misc
+    js: 'text/javascript', css: 'text/css', py: 'text/x-python', apk: 'application/vnd.android.package-archive',
+    exe: 'application/octet-stream', dmg: 'application/octet-stream', iso: 'application/octet-stream',
+};
+
+function inferMimeType(file) {
+    if (file.type) return file.type;
+    const ext = file.name.split('.').pop().toLowerCase();
+    return MIME_MAP[ext] || 'application/octet-stream';
+}
+
 async function streamFile(file) {
     const flowId = Math.random().toString(36).substr(2, 9);
     renderFlowUI(flowId, file.name, file.size, 'out');
     UI.emptyMsg.classList.add('hidden');
 
     const key = await deriveKey(myRoomPin);
-    activeConn.send({ action: 'meta', id: flowId, name: file.name, size: file.size, type: file.type });
+    const mimeType = inferMimeType(file);
+    activeConn.send({ action: 'meta', id: flowId, name: file.name, size: file.size, type: mimeType });
 
     if (file.size >= LARGE_FILE_THRESHOLD) {
         notify('Waiting for peer to accept large file...', 'info');

@@ -156,12 +156,27 @@ function showPreview(blob, name, type) {
         el.src = url;
         el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl object-contain';
     } else if(isVid) {
+        const testVid = document.createElement('video');
+        const canPlay = testVid.canPlayType(type);
+        if(canPlay === '' || canPlay === 'no') {
+            // Browser can't decode this codec — show info card instead
+            URL.revokeObjectURL(url); _previewBlobUrl = null;
+            notify(`Browser can't preview ${type.split('/')[1].toUpperCase()} — file was downloaded`, 'info');
+            return;
+        }
         el = document.createElement('video');
         el.src = url;
         el.controls = true;
         el.autoplay = true;
         el.className = 'max-w-full max-h-full rounded-2xl shadow-2xl';
     } else if(isAud) {
+        const testAud = document.createElement('audio');
+        const canPlay = testAud.canPlayType(type);
+        if(canPlay === '' || canPlay === 'no') {
+            URL.revokeObjectURL(url); _previewBlobUrl = null;
+            notify(`Browser can't preview ${type.split('/')[1].toUpperCase()} audio — file was downloaded`, 'info');
+            return;
+        }
         const wrap = document.createElement('div');
         wrap.className = 'flex flex-col items-center gap-4 p-6';
         const icon = document.createElement('i');
