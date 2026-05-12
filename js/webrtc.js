@@ -66,9 +66,15 @@ function handleDisconnect() {
         isReconnecting = true;
         notify('Link dropped, reconnecting...', 'warning');
         setTimeout(async () => {
-            const hashedTarget = await hashPin(myRoomPin);
-            initiateHandshake(`LINKY-${hashedTarget}`);
-            isReconnecting = false;
+            try {
+                const hashedTarget = await hashPin(myRoomPin);
+                initiateHandshake(`LINKY-${hashedTarget}`);
+            } catch(e) {
+                console.error('Reconnect failed', e);
+                notify('Reconnect Failed', 'error');
+            } finally {
+                isReconnecting = false;
+            }
         }, 2000);
     } else {
         notify('Link Terminated', 'error');
@@ -85,7 +91,8 @@ function setupConnection(conn) {
     activeConn.on('open', () => {
         isReconnecting = false;
         notify('Symmetric Tunnel Sealed', 'success');
-        UI.setup.classList.add('hidden');
+        // Keep setup visible for host (they still need the PIN display visible to share)
+        if (!isHost) UI.setup.classList.add('hidden');
         UI.placeholder.classList.add('hidden');
         UI.workspace.classList.remove('hidden');
         markConnectionReady();
@@ -254,7 +261,8 @@ async function streamFile(file) {
                 if(!activeConn) throw new Error('Peer Disconnected');
                 const chunk = value.slice(offset, offset + CHUNK_SIZE);
                 const encrypted = await encryptChunk(chunk, key);
-                activeConn.send({ action: 'chunk', id: flowId, iv: encrypted.iv, data: encrypted.data });
+                // Convert iv to plain Array for reliable cross-browser serialization via PeerJS
+                activeConn.send({ action: 'chunk', id: flowId, iv: Array.from(encrypted.iv), data: encrypted.data });
                 offset += chunk.length;
                 sent += chunk.length;
                 tickProgress(flowId, sent, file.size);

@@ -21,5 +21,9 @@ async function encryptChunk(chunk, key) {
 }
 
 async function decryptChunk(pkt, key) {
-    return await crypto.subtle.decrypt({ name: "AES-GCM", iv: pkt.iv }, key, pkt.data);
+    // iv is sent as Array.from(Uint8Array) — convert back; handle plain object fallback too
+    const iv = new Uint8Array(pkt.iv);
+    // data arrives as ArrayBuffer from PeerJS; handle ArrayBufferView as fallback
+    const data = pkt.data instanceof ArrayBuffer ? pkt.data : (ArrayBuffer.isView(pkt.data) ? pkt.data.buffer : pkt.data);
+    return await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
 }
