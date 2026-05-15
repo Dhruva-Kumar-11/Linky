@@ -1,7 +1,6 @@
 # 🚀 Linky | Symmetric P2P Share (v2.0 Stable)
 
-Welcome to the official repository for **Linky**, a high-performance, browser-native Peer-to-Peer file sharing application. This hub centralizes all information required to understand, develop, and present this project.
-
+Welcome to the official repository for **Linky**, a high-performance, browser-native Peer-to-Peer file sharing application. Built as a final-year BCA academic project.
 ---
 
 ## 📂 Quick Access
